@@ -1,0 +1,8 @@
+Instruction:
+Write a C++ executable that reads a list of orders and writes the payload that meets the Deribit API requirements. (https://docs.deribit.com/#private-buy)
+An example input and the expected output is given in test_input.txt and test_output.txt. The indentation and line break of the output file may be arbitraty.
+Generate the output txt file by running the executable with the input file deribit_orders.txt.
+Submit the source code, output file, and a summary report.
+The summary report may be in txt, pdf, md, or ipynb formats. It should include the build instruction and any discussion on the design decisions or future improvement. Measure the total execution time and include in the report.
+Send the result in a single zip file to jlee@versifi.io.
+

@@ -1,0 +1,2 @@
+id,direction,amount,instrument_name,label,type,price,time_in_force,post_only,trigger_price,trigger
+1,buy,40,ETH-PERPETUAL,my_algo_64,market,,,,,
