@@ -1,4 +1,3 @@
-# Deribit Order Passer Makefile
 CXX = g++
 CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -I./include
 LDFLAGS = -pthread
