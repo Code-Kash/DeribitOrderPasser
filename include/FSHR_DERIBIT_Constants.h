@@ -32,12 +32,6 @@ namespace fischer::deribit
     constexpr char CarriageReturn = '\r';
     constexpr char Space = ' ';
     constexpr char NullTerminator = '\0';
-    constexpr char BooleanTrue1 = 't';
-    constexpr char BooleanTrue2 = 'T';
-    constexpr char BooleanTrue3 = '1';
-    constexpr char BooleanFalse1 = 'f';
-    constexpr char BooleanFalse2 = 'F';
-    constexpr char BooleanFalse3 = '0';
 
     // Field Names
     constexpr std::string_view FieldId = "id";
@@ -62,12 +56,6 @@ namespace fischer::deribit
     constexpr std::string_view LinkedOrderType = "linked_order_type";
     constexpr std::string_view TriggerFillCondition = "trigger_fill_condition";
 
-    // String Literals
-    constexpr std::string_view True = "true";
-    constexpr std::string_view False = "false";
-    constexpr std::string_view Quote = "\"";
-    constexpr std::string_view Colon = ":";
-    constexpr std::string_view Comma = ",";
 
     // File I/O
     constexpr std::string_view DefaultInputFile = "deribit_orders.txt";
