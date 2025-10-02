@@ -17,24 +17,18 @@
 
 namespace fischer::deribit
 {
-    // ============================================================================
-    // Logger Class - Thread-safe Singleton
-    // ============================================================================
     template<typename Traits = DeribitTraits>
     class Logger
     {
     public:
-        // Rule of Five - Singleton pattern
         RULE_OF_FIVE_NONMOVABLE(Logger);
 
-        // Get singleton instance
         static Logger& GetInstance()
         {
             static Logger instance;
             return instance;
         }
 
-        // Initialize logger (call once at startup)
         void Initialize(const std::string& logFile = "",
                        LogLevel minLevel = LogLevel::Info,
                        bool enableConsole = true,
@@ -57,7 +51,6 @@ namespace fischer::deribit
             }
         }
 
-        // Shutdown logger
         void Shutdown()
         {
             std::lock_guard<std::mutex> lock(m_Mutex);
@@ -68,7 +61,6 @@ namespace fischer::deribit
             }
         }
 
-        // Log methods with different levels
         template<typename... Args>
         void Debug(const Args&... args)
         {
@@ -99,19 +91,16 @@ namespace fischer::deribit
             Log(LogLevel::Critical, args...);
         }
 
-        // Set minimum log level
         void SetLogLevel(LogLevel level)
         {
             m_MinLogLevel.store(level);
         }
 
-        // Get current log level
         LogLevel GetLogLevel() const
         {
             return m_MinLogLevel.load();
         }
 
-        // Enable/disable outputs
         void SetConsoleOutput(bool enable)
         {
             m_EnableConsole.store(enable);
@@ -131,7 +120,6 @@ namespace fischer::deribit
         {
         }
 
-        // Main logging function
         template<typename... Args>
         void Log(LogLevel level, const Args&... args)
         {
@@ -143,7 +131,6 @@ namespace fischer::deribit
             std::ostringstream oss;
             oss.str().reserve(Traits::MaxLogMessageLength);
 
-            // Add timestamp
             auto now = std::chrono::system_clock::now();
             auto time_t = std::chrono::system_clock::to_time_t(now);
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -152,21 +139,17 @@ namespace fischer::deribit
             oss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
             oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
 
-            // Add log level
             oss << " [" << utils::LogLevelToString(level) << "] ";
 
-            // Add message
             ((oss << args << ' '), ...);
 
             std::string message = oss.str();
 
-            // Trim trailing space
             if (false == message.empty() && ' ' == message.back())
             {
                 message.pop_back();
             }
 
-            // Output to destinations
             std::lock_guard<std::mutex> lock(m_Mutex);
 
             if (true == m_EnableConsole.load())
