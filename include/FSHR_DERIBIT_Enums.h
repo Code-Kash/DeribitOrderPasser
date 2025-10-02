@@ -99,4 +99,32 @@ namespace fischer::deribit
         Complete = 4,
         Failed = 5
     };
+
+    // Field indices for O(1) CSV field dispatch
+    enum class FieldIndex : int8_t
+    {
+        None = -1,
+        Id = 0,
+        Direction,
+        Amount,
+        Contracts,
+        InstrumentName,
+        Label,
+        Type,
+        Price,
+        TimeInForce,
+        PostOnly,
+        RejectPostOnly,
+        ReduceOnly,
+        TriggerPrice,
+        TriggerOffset,
+        Trigger,
+        DisplayAmount,
+        Advanced,
+        Mmp,
+        ValidUntil,
+        LinkedOrderType,
+        TriggerFillCondition,
+        MaxFields
+    };
 }
