@@ -130,6 +130,5 @@ namespace fischer::deribit
         LOG_INFO("Output written successfully:", filename);
     }
 
-    // Explicit template instantiation
     template class OrderProcessor<DeribitTraits>;
 }

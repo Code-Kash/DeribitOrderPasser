@@ -100,7 +100,6 @@ namespace fischer::deribit
         Failed = 5
     };
 
-    // Field indices for O(1) CSV field dispatch
     enum class FieldIndex : int8_t
     {
         None = -1,

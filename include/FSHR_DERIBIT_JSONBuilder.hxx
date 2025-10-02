@@ -266,6 +266,5 @@ namespace fischer::deribit
         }
     }
 
-    // Explicit template instantiation
     template class JsonBuilder<DeribitTraits>;
 }

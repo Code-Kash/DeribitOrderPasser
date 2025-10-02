@@ -5,7 +5,6 @@
 
 namespace fischer::deribit::utils
 {
-    // Simplified boolean parsing - only check for true values
     inline constexpr bool ParseBool(char c) noexcept
     {
         return 't' == c || 'T' == c || '1' == c;

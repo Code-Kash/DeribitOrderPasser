@@ -347,6 +347,5 @@ namespace fischer::deribit
         return FieldIndex::None;
     }
 
-    // Explicit template instantiation
     template class CsvParser<DeribitTraits>;
 }

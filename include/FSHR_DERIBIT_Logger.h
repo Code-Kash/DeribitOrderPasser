@@ -180,6 +180,7 @@ namespace fischer::deribit
         std::atomic<bool> m_EnableFile;
     };
 
+    // May move to Macro.h, unsure
     #define LOG_DEBUG(...)   fischer::deribit::Logger<>::GetInstance().Debug(__VA_ARGS__)
     #define LOG_INFO(...)    fischer::deribit::Logger<>::GetInstance().Info(__VA_ARGS__)
     #define LOG_WARNING(...) fischer::deribit::Logger<>::GetInstance().Warning(__VA_ARGS__)
