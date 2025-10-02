@@ -77,7 +77,6 @@ struct alignas(64) Order
 
 ## How to Build
 
-### Quick Start
 ```bash
 make release
 
@@ -96,6 +95,7 @@ make clean
 ## Performance Metrics
 
 ### Current Performance (Release Build, -O3, with optimizations)
+- **Full Program Execution**: 30-40 milliseconds for 10,000 orders
 - **Throughput**: ~293,000 orders/second
 - **Latency**: 2.82 - 3.85 microseconds per order (average: 3.41 μs)
 - **Parse Time**: ~1.23 microseconds per order
