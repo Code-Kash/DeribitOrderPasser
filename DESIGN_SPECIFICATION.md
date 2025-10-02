@@ -1,11 +1,8 @@
 # Fischer Framework Design Specification
-## Deribit Order Processing System
 
 ---
 
-## Executive Summary
-
-The Fischer Framework is a high-performance order processing system designed for the Deribit cryptocurrency derivatives exchange. Named after the legendary chess Grandmaster Bobby Fischer, the framework embodies strategic thinking, precision, and optimal performance in every move. The system processes CSV order data and transforms it into Deribit JSON-RPC format with exceptional throughput and minimal latency.
+The Fischer Framework, named after chess grandmaster Bobby Fischer, is a high-performance order processing system designed for the Deribit cryptocurrency derivatives exchange. The system processes CSV order data and transforms it into Deribit JSON-RPC format.
 
 ---
 
@@ -13,8 +10,8 @@ The Fischer Framework is a high-performance order processing system designed for
 
 ### Core Design Principles
 
-#### 1. Policy-Traits Design Pattern
-The system employs a sophisticated policy-traits architecture that enables compile-time customization and optimization:
+#### 1. Traits Design Pattern
+The framework employs a traits-based architecture that enables compile-time configuration and optimization:
 
 ```cpp
 struct DeribitTraits
@@ -27,56 +24,89 @@ struct DeribitTraits
 
     static constexpr size_t InitialJsonBufferSize = 40960;
     static constexpr size_t MaxOrderCount = 10000;
+    static constexpr size_t MaxFieldCount = 32;
     static constexpr MessageIdType InitialMessageId = 5275;
+
+    // Performance tuning flags
+    static constexpr bool EnableVectorReserve = true;
+    static constexpr bool EnableBufferPreallocation = true;
 };
 ```
 
-This design allows for:
-- Protocol-specific customization without runtime overhead
-- Easy adaptation to different exchanges or protocols
-- Compile-time type safety and optimization
+This traits pattern allows:
+- **Compile-time Polymorphism**: Different exchange protocols can be supported by swapping traits (i.e. BitsoTraits, HyperliquidTraits, etc.)
+- **Zero-cost Abstractions**: All trait lookups resolved at compile time
+- **Type Safety**: Strong typing through trait typedefs prevents errors
 
-#### 2. One Class Per Header Philosophy
-Each component is isolated in its own header/implementation pair:
-- `FSHR_DERIBIT_OrderProcessor.h/hxx` - Main processing orchestration
-- `FSHR_DERIBIT_CSVParser.h/hxx` - CSV parsing logic
-- `FSHR_DERIBIT_JSONBuilder.h/hxx` - JSON construction
-- `FSHR_DERIBIT_Logger.h/hxx` - Thread-safe logging
-- `FSHR_DERIBIT_Order.h` - Order data structure
-- `FSHR_DERIBIT_Constants.h` - System constants
-- `FSHR_DERIBIT_Utils.h` - Utility functions
+#### 2. Compile-Time Optimizations
 
-#### 3. Compile-Time Optimizations
-- **Template Metaprogramming**: All major classes are templated on traits
-- **Constexpr Everything**: Constants and utility functions leverage constexpr
-- **RAII**: Automatic resource management throughout
+##### Template Metaprogramming
+All core components are templated on the traits parameter, enabling:
+- **Inlining**: Compiler can inline all trait-dependent code
+- **Dead Code Elimination**: Unused code paths removed at compile time
+- **Constant Propagation**: Trait constants baked into machine code
 
-#### 4. Memory Management
-- **Smart Pointers**: std::unique_ptr for automatic memory management
-- **Pre-allocation**: Buffers pre-allocated based on estimated sizes
-- **RO5**: Rule of Five properly implemented
-- **Zero-Copy Operations**: Minimal string copying during parsing
+##### Constexpr
+Extensive use of constexpr for compile-time computation:
+- **String Literals**: All protocol strings are constexpr std::string_view
+- **Utility Functions**: ParseBool, field lookups resolved at compile time
+- **Size Calculations**: Buffer sizes computed during compilation
+
+##### Cache-Line Optimization
+Data structures aligned to 64-byte cache lines:
+```cpp
+struct alignas(64) Order
+{
+    // Hot data grouped together
+    OrderIdType m_Id;
+    AmountType m_Amount;
+    AmountType m_Contracts;
+    std::string m_InstrumentName;
+    // Cold data at the end
+    std::optional<std::string> m_TriggerFillCondition;
+};
+```
+
+#### 3. RAII and Memory Management
+- **Automatic Resource Management**: All resources managed through RAII
+- **Pre-allocation**: Vectors and strings reserve capacity upfront
+- **Move Semantics**: Efficient transfer of ownership without copying
+- **Zero Dynamic Allocation**: In steady-state operation after initialization
+
+---
+
+## How to Build
+
+### Quick Start
+```bash
+make release
+
+./bin/deribit_order_passer deribit_orders.txt output.txt
+
+make debug
+
+make clean
+```
+
+### Requirements
+- C++20 compatible compiler (GCC 11+ or Clang 14+)
 
 ---
 
 ## Performance Metrics
 
-### Current Performance (Release Build, -O3)
-- **Throughput**: 239,894 orders/second
-- **Latency**: 4.17 microseconds per order
-- **Parse Time**: 1.31 microseconds per order
-- **JSON Build**: 1.54 microseconds per order
-- **File I/O**: 1.29 microseconds per order
+### Current Performance (Release Build, -O3, with optimizations)
+- **Throughput**: ~293,000 orders/second
+- **Latency**: 2.82 - 3.85 microseconds per order (average: 3.41 μs)
+- **Parse Time**: ~1.23 microseconds per order
+- **JSON Build**: ~1.43 microseconds per order
+- **File I/O**: ~1.15 microseconds per order
 
-### Memory Profile
-- **Initial Buffer**: 40KB JSON buffer
-- **Growth Factor**: 2x on overflow
-- **Order Reservation**: 10,000 orders pre-allocated
-- **Zero Dynamic Allocation**: In steady-state operation
+*Performance measured using std::chrono::high_resolution_clock for microsecond-precision timing of 10,000 order processing cycles.*
 
 ---
 
-## Future Optimization Considerations
+## Future Optimization
 
 ### 1. CPU Affinity and NUMA Awareness
 ```cpp
@@ -89,57 +119,32 @@ class ThreadAffinityManager
 ```
 
 ### 2. Multi-Threading Architecture
+Lock-free SPSC (Single Producer Single Consumer) queues would enable high-performance pipelined processing with dedicated threads for parsing, JSON building, and I/O operations, eliminating contention and maximizing throughput. In even further cases, these queues can optimize communication of data from the market data feed handlers -> execution system -> order passer.
+
 ```cpp
-// Future: Pipeline architecture
+// Future: Pipeline architecture using lock-free data structures
 class OrderPipeline
 {
     std::thread m_ParseThread;    // CSV parsing
     std::thread m_BuildThread;    // JSON building
     std::thread m_WriteThread;    // File output
 
-    lockfree::spsc_queue<Order> m_ParseQueue;
-    lockfree::spsc_queue<std::string> m_OutputQueue;
+    boost::lockfree::spsc_queue<Order> m_ParseQueue;
+    boost::lockfree::spsc_queue<std::string> m_OutputQueue;
 };
 ```
 
 ### 3. FIX Protocol Support
-```cpp
-// Future: Alternative protocol support
-template<typename Protocol>
-class ProtocolAdapter
-{
-    // Specialize for FIX, JSON-RPC, Binary protocols
-};
-
-template<>
-class ProtocolAdapter<FIXProtocol>
-{
-    void BuildFIXMessage(const Order& order);
-};
-```
+FIX protocol would be needed for production trading systems as it's the industry standard for order routing and execution with guaranteed message delivery and recovery.
 
 ### 4. Network Integration
-```cpp
-// Future: Direct exchange connectivity
-class DeribitWebSocketClient
-{
-    void SendOrderAsync(const std::string& jsonPayload);
-    void HandleOrderResponse(const std::string& response);
-};
-```
+Direct exchange connectivity would utilize WebSocket or binary protocols with kernel bypass networking (DPDK/io_uring/taskset) for ultra-low latency order submission and market data reception.
 
-### 5. Scalability Enhancements
-- **Memory Pools**: Custom allocators for hot-path allocations
-- **SIMD Operations**: Vectorized parsing for numeric fields
-- **Lock-Free Data Structures**: SPSC queues for communication between systems parts
-- **Zero-Copy Networking**: Using io_uring or DPDK
-- **Compression**: LZ4 for large order batches
+### 5. Market Data Feeder
+A dedicated market data feeder component would consume real-time price feeds, maintaining local order books and providing tick-by-tick updates for trading decisions and risk calculations.
 
-### 6. Advanced Features
-- **Order Book Reconstruction**: Build local order book from messages
-- **Market Data Integration**: Real-time price feeds
-- **Risk Management**: Position limits and exposure calculations
-- **Latency Monitoring**: Microsecond-precision telemetry
+### 6. Latency Measurement & Testing
+Replace std::chrono with hardware timestamping solutions like Corvil for nanosecond-precision latency measurement, enabling comprehensive performance analysis across the entire trading infrastructure. Also, develop automated testing infrastructure including unit tests, integration tests, and latency benchmarks to validate correctness and performance under various market conditions and order volumes.
 
 ---
 
@@ -190,8 +195,6 @@ enum class OrderDirection : uint8_t
 };
 ```
 
-### File Organization
-
 #### File Naming
 - **Headers**: `.h` extension
 - **Implementation**: `.hxx` for templates, `.cpp` for regular source
@@ -212,8 +215,6 @@ enum class OrderDirection : uint8_t
 #include <string>                       // Standard
 ```
 
-### Class Design
-
 #### Declaration Order
 ```cpp
 class OrderProcessor
@@ -233,8 +234,6 @@ private:
     ProcessingStatus m_Status;
 };
 ```
-
-### Code Style
 
 #### Formatting
 - **Style**: Allman (BSD) style braces
@@ -263,8 +262,6 @@ if (nullptr == pointer)
 if (42 == value)
 if (true == flag)
 ```
-
-### Best Practices
 
 #### Functions
 - **Line Limit**: 50-100 lines maximum
@@ -298,52 +295,3 @@ string name;
 // Good
 std::string name;
 ```
-
----
-
-## Build Configuration
-
-### Compiler Requirements
-- **Minimum**: GCC 11.0 or Clang 13.0
-- **Recommended**: GCC 14.2 or latest Clang
-- **Standard**: C++20
-
-### Optimization Flags
-```makefile
-DEBUG_FLAGS = -g -O0 -DDEBUG -fsanitize=address
-RELEASE_FLAGS = -O3 -DNDEBUG -march=native -flto
-PROFILE_FLAGS = -O2 -pg -fno-omit-frame-pointer
-```
-
-### Dependencies
-- **Required**: Standard C++ library only
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- Each class should have corresponding test file
-- Minimum 80% code coverage
-- Edge cases and error conditions must be tested
-
-### Performance Tests
-- Benchmark against baseline metrics
-- Profile for memory leaks and hotspots
-- Stress test with maximum order volumes
-
-### Integration Tests
-- End-to-end order processing validation
-- Protocol compliance verification
-- Network connectivity tests (future)
-
----
-
-## Version History
-
-| Version | Date | Description |
-|---------|------|-------------|
-| 1.0.0   | 2024 | Initial release with CSV to JSON-RPC conversion |
-| 1.1.0   | TBD  | Multi-threading support |
-| 1.2.0   | TBD  | FIX protocol adapter |
-| 2.0.0   | TBD  | Network integration and real-time processing |
