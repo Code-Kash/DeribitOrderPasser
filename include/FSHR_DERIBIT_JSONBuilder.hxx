@@ -258,11 +258,11 @@ namespace fischer::deribit
     {
         if (true == value)
         {
-            AppendString(True.data(), True.size());
+            AppendString("true", 4);
         }
         else
         {
-            AppendString(False.data(), False.size());
+            AppendString("false", 5);
         }
     }
 
