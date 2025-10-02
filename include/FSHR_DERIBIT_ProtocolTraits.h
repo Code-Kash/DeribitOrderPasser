@@ -72,19 +72,4 @@ namespace fischer::deribit
 
     template<typename Traits>
     using Size = typename Traits::SizeType;
-
-    template<typename T>
-    concept ProtocolTraitsConcept = requires {
-        typename T::OrderIdType;
-        typename T::MessageIdType;
-        typename T::AmountType;
-        typename T::PriceType;
-        typename T::SizeType;
-        { T::InitialJsonBufferSize } -> std::convertible_to<size_t>;
-        { T::MaxOrderCount } -> std::convertible_to<size_t>;
-        { T::ProtocolName } -> std::convertible_to<std::string_view>;
-    };
-
-    static_assert(ProtocolTraitsConcept<DeribitTraits>,
-                  "DeribitTraits does not satisfy ProtocolTraitsConcept");
 }
