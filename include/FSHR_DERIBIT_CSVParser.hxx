@@ -1,6 +1,7 @@
 #include "FSHR_DERIBIT_CSVParser.h"
 #include "FSHR_DERIBIT_Logger.h"
 #include "FSHR_DERIBIT_Constants.h"
+#include "FSHR_DERIBIT_Utils.h"
 
 #include <fstream>
 #include <cstring>
@@ -16,6 +17,7 @@ namespace fischer::deribit
         , m_State{ParserState::NotLoaded}
     {
         m_Headers.reserve(Traits::MaxFieldCount);
+        m_FieldMapping.fill(FieldIndex::None);
     }
 
     template<typename Traits>
@@ -109,9 +111,12 @@ namespace fischer::deribit
     void CsvParser<Traits>::ParseHeaders(const char* start, const char* end)
     {
         m_Headers.clear();
+        m_FieldMapping.fill(FieldIndex::None);
 
         const char* current = start;
-        while (current < end)
+        size_t columnIndex = 0;
+
+        while (current < end && columnIndex < Traits::MaxFieldCount)
         {
             const char* comma = std::strchr(current, FieldDelimiter);
             if (nullptr == comma || comma > end)
@@ -119,8 +124,14 @@ namespace fischer::deribit
                 comma = end;
             }
 
-            m_Headers.emplace_back(current, static_cast<SizeType>(comma - current));
+            std::string_view header(current, static_cast<SizeType>(comma - current));
+            m_Headers.emplace_back(header);
+
+            // Map column index to field type for O(1) lookup during parsing
+            m_FieldMapping[columnIndex] = GetFieldIndex(header);
+
             current = comma + 1;
+            columnIndex++;
         }
 
         LOG_DEBUG("Parsed", m_Headers.size(), "CSV headers");
@@ -130,9 +141,9 @@ namespace fischer::deribit
     bool CsvParser<Traits>::ParseDataLine(const char* start, const char* end, OrderType& order)
     {
         const char* current = start;
-        SizeType fieldIndex = 0;
+        SizeType columnIndex = 0;
 
-        while (current < end && fieldIndex < m_Headers.size())
+        while (current < end && columnIndex < m_Headers.size())
         {
             const char* comma = std::strchr(current, FieldDelimiter);
             if (nullptr == comma || comma > end)
@@ -156,13 +167,18 @@ namespace fischer::deribit
                 length--;
             }
 
-            if (0 < length)
+            // Use pre-computed field index for O(1) dispatch
+            if (0 < length && columnIndex < Traits::MaxFieldCount)
             {
-                AssignFieldValue(order, m_Headers[fieldIndex], current, length);
+                const FieldIndex fieldIdx = m_FieldMapping[columnIndex];
+                if (FieldIndex::None != fieldIdx)
+                {
+                    AssignFieldValue(order, m_Headers[columnIndex], current, length);
+                }
             }
 
             current = comma + 1;
-            fieldIndex++;
+            columnIndex++;
         }
 
         return true;
@@ -172,100 +188,163 @@ namespace fischer::deribit
     void CsvParser<Traits>::AssignFieldValue(OrderType& order, std::string_view fieldName,
                                              const char* value, SizeType length)
     {
-        if (FieldId == fieldName)
+        const FieldIndex fieldIdx = GetFieldIndex(fieldName);
+
+        switch (fieldIdx)
         {
+        case FieldIndex::Id:
             std::from_chars(value, value + length, order.m_Id);
-        }
-        else if (FieldDirection == fieldName)
-        {
+            break;
+
+        case FieldIndex::Direction:
             order.m_Direction.assign(value, length);
-        }
-        else if (FieldAmount == fieldName)
-        {
+            break;
+
+        case FieldIndex::Amount:
             order.m_Amount = std::strtod(value, nullptr);
-        }
-        else if (FieldContracts == fieldName)
-        {
+            break;
+
+        case FieldIndex::Contracts:
             order.m_Contracts = std::strtod(value, nullptr);
-        }
-        else if (FieldInstrumentName == fieldName)
-        {
+            break;
+
+        case FieldIndex::InstrumentName:
             order.m_InstrumentName.assign(value, length);
-        }
-        else if (FieldLabel == fieldName)
-        {
+            break;
+
+        case FieldIndex::Label:
             order.m_Label.assign(value, length);
-        }
-        else if (FieldType == fieldName)
-        {
+            break;
+
+        case FieldIndex::Type:
             order.m_Type.assign(value, length);
-        }
-        else if (FieldPrice == fieldName)
-        {
+            break;
+
+        case FieldIndex::Price:
             order.m_Price = std::strtod(value, nullptr);
-        }
-        else if (TimeInForce == fieldName)
-        {
+            break;
+
+        case FieldIndex::TimeInForce:
             order.m_TimeInForce = std::string(value, length);
-        }
-        else if (PostOnly == fieldName)
-        {
-            order.m_PostOnly = (BooleanTrue1 == value[0] ||
-                               BooleanTrue2 == value[0] ||
-                               BooleanTrue3 == value[0]);
-        }
-        else if (RejectPostOnly == fieldName)
-        {
-            order.m_RejectPostOnly = (BooleanTrue1 == value[0] ||
-                                      BooleanTrue2 == value[0] ||
-                                      BooleanTrue3 == value[0]);
-        }
-        else if (ReduceOnly == fieldName)
-        {
-            order.m_ReduceOnly = (BooleanTrue1 == value[0] ||
-                                  BooleanTrue2 == value[0] ||
-                                  BooleanTrue3 == value[0]);
-        }
-        else if (TriggerPrice == fieldName)
-        {
+            break;
+
+        case FieldIndex::PostOnly:
+            order.m_PostOnly = utils::ParseBool(value[0]);
+            break;
+
+        case FieldIndex::RejectPostOnly:
+            order.m_RejectPostOnly = utils::ParseBool(value[0]);
+            break;
+
+        case FieldIndex::ReduceOnly:
+            order.m_ReduceOnly = utils::ParseBool(value[0]);
+            break;
+
+        case FieldIndex::TriggerPrice:
             order.m_TriggerPrice = std::strtod(value, nullptr);
-        }
-        else if (TriggerOffset == fieldName)
-        {
+            break;
+
+        case FieldIndex::TriggerOffset:
             order.m_TriggerOffset = std::strtod(value, nullptr);
-        }
-        else if (Trigger == fieldName)
-        {
+            break;
+
+        case FieldIndex::Trigger:
             order.m_Trigger = std::string(value, length);
-        }
-        else if (DisplayAmount == fieldName)
-        {
+            break;
+
+        case FieldIndex::DisplayAmount:
             order.m_DisplayAmount = std::strtod(value, nullptr);
-        }
-        else if (Advanced == fieldName)
-        {
+            break;
+
+        case FieldIndex::Advanced:
             order.m_Advanced = std::string(value, length);
-        }
-        else if (Mmp == fieldName)
-        {
-            order.m_Mmp = (BooleanTrue1 == value[0] ||
-                          BooleanTrue2 == value[0] ||
-                          BooleanTrue3 == value[0]);
-        }
-        else if (ValidUntil == fieldName)
-        {
-            int64_t validUntil = 0;
-            std::from_chars(value, value + length, validUntil);
-            order.m_ValidUntil = validUntil;
-        }
-        else if (LinkedOrderType == fieldName)
-        {
+            break;
+
+        case FieldIndex::Mmp:
+            order.m_Mmp = utils::ParseBool(value[0]);
+            break;
+
+        case FieldIndex::ValidUntil:
+            {
+                int64_t validUntil = 0;
+                std::from_chars(value, value + length, validUntil);
+                order.m_ValidUntil = validUntil;
+            }
+            break;
+
+        case FieldIndex::LinkedOrderType:
             order.m_LinkedOrderType = std::string(value, length);
-        }
-        else if (TriggerFillCondition == fieldName)
-        {
+            break;
+
+        case FieldIndex::TriggerFillCondition:
             order.m_TriggerFillCondition = std::string(value, length);
+            break;
+
+        case FieldIndex::None:
+        case FieldIndex::MaxFields:
+            // Unknown field - ignore
+            break;
         }
+    }
+
+    template<typename Traits>
+    FieldIndex CsvParser<Traits>::GetFieldIndex(std::string_view fieldName) const noexcept
+    {
+        if (fieldName.empty()) return FieldIndex::None;
+
+        const char first = fieldName[0];
+        const size_t len = fieldName.length();
+
+        // Lookup using first character and length to minimize comparisons
+        switch (first)
+        {
+        case 'a':
+            if (6 == len && "amount" == fieldName) return FieldIndex::Amount;
+            if (8 == len && "advanced" == fieldName) return FieldIndex::Advanced;
+            break;
+        case 'c':
+            if (9 == len && "contracts" == fieldName) return FieldIndex::Contracts;
+            break;
+        case 'd':
+            if (9 == len && "direction" == fieldName) return FieldIndex::Direction;
+            if (14 == len && "display_amount" == fieldName) return FieldIndex::DisplayAmount;
+            break;
+        case 'i':
+            if (2 == len && "id" == fieldName) return FieldIndex::Id;
+            if (15 == len && "instrument_name" == fieldName) return FieldIndex::InstrumentName;
+            break;
+        case 'l':
+            if (5 == len && "label" == fieldName) return FieldIndex::Label;
+            if (17 == len && "linked_order_type" == fieldName) return FieldIndex::LinkedOrderType;
+            break;
+        case 'm':
+            if (3 == len && "mmp" == fieldName) return FieldIndex::Mmp;
+            break;
+        case 'p':
+            if (5 == len && "price" == fieldName) return FieldIndex::Price;
+            if (9 == len && "post_only" == fieldName) return FieldIndex::PostOnly;
+            break;
+        case 'r':
+            if (11 == len && "reduce_only" == fieldName) return FieldIndex::ReduceOnly;
+            if (16 == len && "reject_post_only" == fieldName) return FieldIndex::RejectPostOnly;
+            break;
+        case 't':
+            if (4 == len && "type" == fieldName) return FieldIndex::Type;
+            if (7 == len && "trigger" == fieldName) return FieldIndex::Trigger;
+            if (13 == len)
+            {
+                if ("time_in_force" == fieldName) return FieldIndex::TimeInForce;
+                if ("trigger_price" == fieldName) return FieldIndex::TriggerPrice;
+            }
+            if (14 == len && "trigger_offset" == fieldName) return FieldIndex::TriggerOffset;
+            if (23 == len && "trigger_fill_condition" == fieldName) return FieldIndex::TriggerFillCondition;
+            break;
+        case 'v':
+            if (11 == len && "valid_until" == fieldName) return FieldIndex::ValidUntil;
+            break;
+        }
+
+        return FieldIndex::None;
     }
 
     // Explicit template instantiation

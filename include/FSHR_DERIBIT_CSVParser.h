@@ -34,12 +34,14 @@ namespace fischer::deribit
         bool ParseDataLine(const char* start, const char* end, OrderType& order);
         void AssignFieldValue(OrderType& order, std::string_view fieldName,
                               const char* value, SizeType length);
+        FieldIndex GetFieldIndex(std::string_view fieldName) const noexcept;
 
     private:
         std::unique_ptr<char[]> m_FileBuffer;
         SizeType m_FileSize;
         ParserState m_State;
         std::vector<std::string_view> m_Headers;
+        std::array<FieldIndex, Traits::MaxFieldCount> m_FieldMapping;
     };
 } 
 
