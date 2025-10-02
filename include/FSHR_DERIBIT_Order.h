@@ -10,22 +10,21 @@
 namespace fischer::deribit
 {
     template<typename Traits = DeribitTraits>
-    struct Order
+    struct alignas(64) Order  
     {
         using OrderIdType = typename Traits::OrderIdType;
         using AmountType = typename Traits::AmountType;
         using PriceType = typename Traits::PriceType;
 
         OrderIdType m_Id{0};
-        std::string m_Direction;
         AmountType m_Amount{0.0};
         AmountType m_Contracts{0.0};
         std::string m_InstrumentName;
-        std::string m_Label;
+        std::string m_Direction;
         std::string m_Type;
-
         std::optional<PriceType> m_Price;
         std::optional<std::string> m_TimeInForce;
+        std::string m_Label;
         std::optional<AmountType> m_DisplayAmount;
         std::optional<bool> m_PostOnly;
         std::optional<bool> m_RejectPostOnly;
